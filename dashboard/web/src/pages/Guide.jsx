@@ -36,8 +36,9 @@ export default function Guide() {
         <div className="card">
           <h3>Crypto (Kraken spot)</h3>
           <p className="muted">
-            Same probability ideas on crypto pairs like BTC/USD. Spot trading is
-            <strong> long-only</strong> in this version (no shorting). Markets run 24/7.
+            Same probability ideas on <strong>BTC/USD</strong> using 15‑minute candles
+            (Kraken spot). Spot trading is <strong>long-only</strong> in this version (no shorting).
+            Markets run 24/7.
           </p>
           <Link to="/crypto/live" className="guide-section-link" style={{ marginTop: "0.75rem" }}>
             <strong>Open Crypto Live</strong>

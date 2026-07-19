@@ -37,7 +37,7 @@ class Planner:
         if entry <= 0:
             return []
 
-        bars = load_bars(self.settings.market_dir(), signal.symbol)
+        bars = load_bars(self.settings.market_dir(), signal.symbol, self.settings.bar_timeframe)
         plans: list[TradePlan] = []
         for side in unique_sides:
             if side == Side.SHORT and not self.settings.allow_short:
@@ -64,6 +64,7 @@ class Planner:
                     stop_pct=stop_pct,
                     horizon_minutes=horizon,
                     side_long=(side == Side.LONG),
+                    bar_minutes=self.settings.bar_minutes,
                 )
 
             p = self.model.predict_proba(features, target_pct=target_pct, stop_pct=stop_pct)

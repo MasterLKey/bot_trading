@@ -32,7 +32,7 @@ class SignalBuilder:
             if live_bars and cand.symbol in live_bars:
                 bars = live_bars[cand.symbol]
             else:
-                bars = load_bars(self.settings.market_dir(), cand.symbol)
+                bars = load_bars(self.settings.market_dir(), cand.symbol, self.settings.bar_timeframe)
                 if bars.empty:
                     bars = load_bars(self.settings.market_dir(), cand.symbol, "1Day")
             if bars is None or bars.empty or len(bars) < 20:
@@ -49,6 +49,7 @@ class SignalBuilder:
                 stop_pct=float(knobs.get("stop_pct", self.settings.stop_pct)),
                 horizon_minutes=int(knobs.get("horizon_minutes", self.settings.horizon_minutes)),
                 side_long=True,
+                bar_minutes=self.settings.bar_minutes,
             )
             hint = Side.LONG if feat_probe["ema_slope"] >= 0 else Side.SHORT
             ts = bars.iloc[idx]["timestamp"]

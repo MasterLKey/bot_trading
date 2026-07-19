@@ -52,9 +52,13 @@ class StreamEngine:
         mdir = self.settings.market_dir()
         for sym in symbols:
             try:
-                df = self.data.get_minute_bars(sym, days=3)
+                df = self.data.get_minute_bars(
+                    sym,
+                    days=3 if self.settings.is_equities else 8,
+                    timeframe=self.settings.ccxt_timeframe,
+                ) if self.settings.is_crypto else self.data.get_minute_bars(sym, days=3)
                 if not df.empty:
-                    save_bars(mdir, sym, df)
+                    save_bars(mdir, sym, df, timeframe=self.settings.bar_timeframe)
             except Exception as exc:  # noqa: BLE001
                 log.debug("bar refresh %s failed: %s", sym, exc)
 

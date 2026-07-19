@@ -45,8 +45,15 @@ def cmd_backfill(args: argparse.Namespace, settings: Settings) -> None:
         )
 
     for sym in symbols:
-        log.info("Backfilling [%s] %s (%d days)...", settings.market, sym, args.days)
-        df = data.get_minute_bars(sym, days=args.days) if data.available else None
+        log.info("Backfilling [%s] %s (%d days, %s)...", settings.market, sym, args.days, settings.bar_timeframe)
+        if settings.is_crypto:
+            df = (
+                data.get_minute_bars(sym, days=args.days, timeframe=settings.ccxt_timeframe)
+                if data.available
+                else None
+            )
+        else:
+            df = data.get_minute_bars(sym, days=args.days) if data.available else None
         if df is None or df.empty:
             if settings.is_equities:
                 log.info("Falling back to yfinance daily for %s", sym)
@@ -56,8 +63,8 @@ def cmd_backfill(args: argparse.Namespace, settings: Settings) -> None:
             else:
                 log.warning("No bars for %s", sym)
             continue
-        path = save_bars(mdir, sym, df)
-        log.info("Saved %d minute bars → %s", len(df), path)
+        path = save_bars(mdir, sym, df, timeframe=settings.bar_timeframe)
+        log.info("Saved %d %s bars → %s", len(df), settings.bar_timeframe, path)
 
 
 def _sample_training_rows(
@@ -70,17 +77,17 @@ def _sample_training_rows(
 ) -> list[dict]:
     rows: list[dict] = []
     mdir = settings.market_dir()
-    symbols = list_symbols_with_bars(mdir, "1Min") or list_symbols_with_bars(mdir, "1Day")
+    tf = settings.bar_timeframe
+    horizon_bars = settings.horizon_bars(horizon)
+    symbols = list_symbols_with_bars(mdir, tf) or list_symbols_with_bars(mdir, "1Day")
     for sym in symbols:
-        # parquet names use underscore; load_bars accepts either if we normalize
         load_sym = sym.replace("_", "/") if settings.is_crypto and "/" not in sym else sym
-        # Actually files are BTC_USD_1Min — load with BTC_USD or BTC/USD both map via replace in bar_path
-        bars = load_bars(mdir, load_sym if "/" in load_sym else sym, "1Min")
+        bars = load_bars(mdir, load_sym if "/" in load_sym else sym, tf)
         if bars.empty:
-            bars = load_bars(mdir, sym, "1Min")
+            bars = load_bars(mdir, sym, tf)
         if bars.empty:
             bars = load_bars(mdir, sym, "1Day")
-        if bars.empty or len(bars) < horizon + 30:
+        if bars.empty or len(bars) < horizon_bars + 30:
             continue
 
         if settings.is_equities and "timestamp" in bars.columns:
@@ -92,7 +99,7 @@ def _sample_training_rows(
             rth_indices = np.arange(len(bars))
 
         for idx in rth_indices[30::step]:
-            if idx + horizon >= len(bars):
+            if idx + horizon_bars >= len(bars):
                 break
             sides = ("long",) if settings.is_crypto else ("long", "short")
             for side in sides:
@@ -102,7 +109,7 @@ def _sample_training_rows(
                     side=side,
                     target_pct=target_pct,
                     stop_pct=stop_pct,
-                    horizon=horizon,
+                    horizon=horizon_bars,
                 )
                 feats = build_features_from_bars(
                     bars,
@@ -111,6 +118,7 @@ def _sample_training_rows(
                     stop_pct=stop_pct,
                     horizon_minutes=horizon,
                     side_long=(side == "long"),
+                    bar_minutes=settings.bar_minutes,
                 )
                 rows.append(
                     {

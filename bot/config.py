@@ -45,7 +45,9 @@ class Settings(BaseSettings):
     max_drawdown_pct: float = 10.0
 
     watchlist: str = "SPY,QQQ,IWM,AAPL,MSFT,NVDA,AMD,TSLA,AMZN,META,GOOGL,JPM"
-    crypto_watchlist: str = "BTC/USD,ETH/USD,SOL/USD,XRP/USD,ADA/USD,DOGE/USD,LINK/USD,AVAX/USD"
+    crypto_watchlist: str = "BTC/USD"
+    # Crypto OHLC interval in minutes (Kraken: 1→~12h, 15→~7.5d lookback)
+    crypto_bar_minutes: int = 15
     min_price: float = 5.0
     max_price: float = 2000.0
     crypto_min_price: float = 0.0
@@ -101,6 +103,25 @@ class Settings(BaseSettings):
     @property
     def active_min_dollar_volume(self) -> float:
         return self.crypto_min_dollar_volume if self.is_crypto else self.min_dollar_volume
+
+    @property
+    def bar_minutes(self) -> int:
+        return self.crypto_bar_minutes if self.is_crypto else 1
+
+    @property
+    def bar_timeframe(self) -> str:
+        """Parquet timeframe label, e.g. 1Min or 15Min."""
+        return f"{self.bar_minutes}Min"
+
+    @property
+    def ccxt_timeframe(self) -> str:
+        """ccxt/Kraken interval string, e.g. 1m or 15m."""
+        return f"{self.bar_minutes}m"
+
+    def horizon_bars(self, horizon_minutes: int | None = None) -> int:
+        """Convert wall-clock horizon minutes into number of bars."""
+        h = self.horizon_minutes if horizon_minutes is None else horizon_minutes
+        return max(1, int(round(h / self.bar_minutes)))
 
     @property
     def is_advisory(self) -> bool:

@@ -62,8 +62,10 @@ def build_features_from_bars(
     stop_pct: float = 0.5,
     horizon_minutes: int = 60,
     side_long: bool = True,
+    bar_minutes: int = 1,
 ) -> dict[str, float]:
-    window = bars.iloc[max(0, idx - 60) : idx + 1]
+    lookback = max(60, int(60 / max(bar_minutes, 1)) + 5)
+    window = bars.iloc[max(0, idx - lookback) : idx + 1]
     if window.empty:
         return {name: 0.0 for name in FEATURE_NAMES}
 
@@ -86,9 +88,12 @@ def build_features_from_bars(
     else:
         ema_slope = 0.0
 
-    if len(closes) >= 15:
-        rets = np.diff(np.log(np.clip(closes[-16:], 1e-9, None)))
-        realized_vol = float(np.std(rets) * np.sqrt(390)) if len(rets) else 0.0
+    vol_window = max(8, int(15 / max(bar_minutes, 1)))
+    if len(closes) >= vol_window:
+        rets = np.diff(np.log(np.clip(closes[-(vol_window + 1) :], 1e-9, None)))
+        # Annualize roughly: bars/day * 365
+        bars_per_day = 1440 / max(bar_minutes, 1)
+        realized_vol = float(np.std(rets) * np.sqrt(bars_per_day)) if len(rets) else 0.0
     else:
         realized_vol = 0.0
 
@@ -97,10 +102,14 @@ def build_features_from_bars(
     ts = bars.iloc[idx]["timestamp"] if "timestamp" in bars.columns else datetime.utcnow()
     tod = time_of_day_bucket(ts)
 
+    # Map wall-clock lookbacks onto bar counts (1m/5m/15m feature slots)
+    def bars_for(minutes: int) -> int:
+        return max(1, int(round(minutes / max(bar_minutes, 1))))
+
     return {
-        "ret_1m": _safe_ret(closes, 1),
-        "ret_5m": _safe_ret(closes, 5),
-        "ret_15m": _safe_ret(closes, 15),
+        "ret_1m": _safe_ret(closes, bars_for(1 if bar_minutes == 1 else bar_minutes)),
+        "ret_5m": _safe_ret(closes, bars_for(5 if bar_minutes == 1 else 2 * bar_minutes)),
+        "ret_15m": _safe_ret(closes, bars_for(15 if bar_minutes == 1 else 4 * bar_minutes)),
         "volume_z": volume_z,
         "trade_count_rate": tc_rate,
         "spread_proxy": float(spread_proxy),

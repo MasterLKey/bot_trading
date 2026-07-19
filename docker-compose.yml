@@ -37,7 +37,7 @@ services:
   backfill-crypto:
     build: .
     profiles: ["jobs"]
-    command: python -m bot backfill --market crypto --days ${BACKFILL_DAYS:-7}
+    command: python -m bot backfill --market crypto --days ${BACKFILL_DAYS:-8}
     env_file: .env
     environment:
       MARKET: crypto
