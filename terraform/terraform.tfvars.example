@@ -1,0 +1,7 @@
+proxmox_host      = "192.168.4.223"
+proxmox_node      = "pm01"
+proxmox_api_token = "root@pam!cursor=REPLACE_ME"
+container_id      = 220
+storage           = "local-lvm"
+ssh_public_key    = "ssh-ed25519 AAAA... your-octo_scrape_deploy.pub"
+root_password     = "change-me"
