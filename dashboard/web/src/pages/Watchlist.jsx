@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { api, fmtNum, fmtPct } from "../api";
 import { statusBadge } from "../badge";
+import { PageHeader } from "../HelpPanel";
+import { SECTION_HELP } from "../helpContent";
 
 export default function Watchlist() {
   const [data, setData] = useState({ manual: [], cards: [] });
@@ -24,7 +26,7 @@ export default function Watchlist() {
 
   return (
     <>
-      <h2>Watchlist</h2>
+      <PageHeader title="Watchlist" help={SECTION_HELP.watchlist} />
       <div className="card" style={{ marginBottom: "1rem" }}>
         <h3>Manual symbols</h3>
         <div className="row" style={{ marginBottom: "0.75rem" }}>

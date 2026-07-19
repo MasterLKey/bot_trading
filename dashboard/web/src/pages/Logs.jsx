@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import { PageHeader } from "../HelpPanel";
+import { SECTION_HELP } from "../helpContent";
 
 export default function Logs() {
   const [events, setEvents] = useState([]);
@@ -12,7 +14,7 @@ export default function Logs() {
 
   return (
     <>
-      <h2>Logs</h2>
+      <PageHeader title="Logs" help={SECTION_HELP.logs} />
       <div className="card">
         <table>
           <thead><tr><th>Time</th><th>Level</th><th>Kind</th><th>Message</th></tr></thead>

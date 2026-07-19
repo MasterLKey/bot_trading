@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from "recharts";
 import { api, fmtNum } from "../api";
+import { PageHeader } from "../HelpPanel";
+import { SECTION_HELP } from "../helpContent";
 
 export default function ModelPage() {
   const [data, setData] = useState({ ready: false, metrics: null });
@@ -13,7 +15,7 @@ export default function ModelPage() {
 
   return (
     <>
-      <h2>Model</h2>
+      <PageHeader title="Model" help={SECTION_HELP.model} />
       <div className="grid cols-3" style={{ marginBottom: "1rem" }}>
         <div className="card"><h3>Ready</h3><div className="stat">{data.ready ? "Yes" : "No"}</div></div>
         <div className="card"><h3>Brier</h3><div className="stat">{fmtNum(m.brier, 4)}</div></div>

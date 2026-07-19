@@ -7,8 +7,10 @@ import History from "./pages/History";
 import Model from "./pages/Model";
 import RiskControls from "./pages/RiskControls";
 import Logs from "./pages/Logs";
+import Guide from "./pages/Guide";
 
 const links = [
+  ["/guide", "Guide"],
   ["/", "Live"],
   ["/watchlist", "Watchlist"],
   ["/positions", "Positions"],
@@ -32,6 +34,7 @@ export default function App() {
       </nav>
       <main className="main">
         <Routes>
+          <Route path="/guide" element={<Guide />} />
           <Route path="/" element={<Live />} />
           <Route path="/watchlist" element={<Watchlist />} />
           <Route path="/positions" element={<Positions />} />

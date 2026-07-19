@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { fmtNum, fmtPct } from "../api";
 import { statusBadge } from "../badge";
+import { PageHeader } from "../HelpPanel";
+import { SECTION_HELP } from "../helpContent";
 
 export default function Live() {
   const [decisions, setDecisions] = useState([]);
@@ -30,7 +32,16 @@ export default function Live() {
 
   return (
     <>
-      <h2>Live decisions {connected ? "●" : "○"} {kill && <span className="badge REJECTED">KILL</span>}</h2>
+      <PageHeader
+        title="Live decisions"
+        help={SECTION_HELP.live}
+        extra={
+          <span className="row">
+            <span className="muted">{connected ? "● connected" : "○ disconnected"}</span>
+            {kill && <span className="badge REJECTED">KILL</span>}
+          </span>
+        }
+      />
       <div className="grid cols-3" style={{ marginBottom: "1rem" }}>
         <div className="card"><h3>Approved</h3><div className="stat" style={{ color: "var(--green)" }}>{counts.APPROVED || 0}</div></div>
         <div className="card"><h3>Watchlist</h3><div className="stat" style={{ color: "var(--amber)" }}>{counts.WATCHLIST || 0}</div></div>

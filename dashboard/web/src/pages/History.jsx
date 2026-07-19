@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { api, fmtNum } from "../api";
 import { statusBadge } from "../badge";
+import { PageHeader } from "../HelpPanel";
+import { SECTION_HELP } from "../helpContent";
 
 export default function History() {
   const [data, setData] = useState({ daily: [], fills: [], decisions: [] });
@@ -18,7 +20,7 @@ export default function History() {
 
   return (
     <>
-      <h2>History</h2>
+      <PageHeader title="History" help={SECTION_HELP.history} />
       <div className="card" style={{ marginBottom: "1rem" }}>
         <h3>Daily PnL</h3>
         <div style={{ width: "100%", height: 240 }}>

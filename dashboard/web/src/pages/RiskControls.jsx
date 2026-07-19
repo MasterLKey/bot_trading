@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, fmtNum } from "../api";
+import { PageHeader } from "../HelpPanel";
+import { SECTION_HELP } from "../helpContent";
 
 export default function RiskControls() {
   const [state, setState] = useState(null);
@@ -31,12 +33,19 @@ export default function RiskControls() {
     refresh();
   }
 
-  if (!state) return <p className="muted">Loading…</p>;
+  if (!state) {
+    return (
+      <>
+        <PageHeader title="Risk & Controls" help={SECTION_HELP.risk} />
+        <p className="muted">Loading…</p>
+      </>
+    );
+  }
   const p = state.portfolio || {};
 
   return (
     <>
-      <h2>Risk & Controls</h2>
+      <PageHeader title="Risk & Controls" help={SECTION_HELP.risk} />
       <div className="grid cols-3" style={{ marginBottom: "1rem" }}>
         <div className="card">
           <h3>Mode</h3>

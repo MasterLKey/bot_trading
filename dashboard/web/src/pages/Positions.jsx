@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
 import { api, fmtNum } from "../api";
+import { PageHeader } from "../HelpPanel";
+import { SECTION_HELP } from "../helpContent";
 
 export default function Positions() {
   const [positions, setPositions] = useState([]);
@@ -60,7 +62,7 @@ export default function Positions() {
 
   return (
     <>
-      <h2>Positions</h2>
+      <PageHeader title="Positions" help={SECTION_HELP.positions} />
       <div className="card" style={{ marginBottom: "1rem" }}>
         <h3>Price overlay</h3>
         <div ref={containerRef} />

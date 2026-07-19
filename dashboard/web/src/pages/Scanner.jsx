@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, fmtNum } from "../api";
+import { PageHeader } from "../HelpPanel";
+import { SECTION_HELP } from "../helpContent";
 
 export default function Scanner() {
   const [data, setData] = useState({ candidates: [], ws_symbols: [] });
@@ -12,7 +14,7 @@ export default function Scanner() {
 
   return (
     <>
-      <h2>Scanner</h2>
+      <PageHeader title="Scanner" help={SECTION_HELP.scanner} />
       <div className="card" style={{ marginBottom: "1rem" }}>
         <h3>WebSocket slots ({data.ws_symbols.length}/30)</h3>
         <div className="row">

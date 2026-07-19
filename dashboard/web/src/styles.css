@@ -93,8 +93,101 @@ button.ghost { background: transparent; border-color: var(--border); color: var(
 .row { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
 .muted { color: var(--muted); }
 .stat { font-size: 1.6rem; font-weight: 700; }
+
+.page-header { margin-bottom: 1rem; }
+.page-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+.page-header-top h2 { margin: 0; font-size: 1.35rem; }
+.main > h2 { margin: 0 0 1rem; font-size: 1.35rem; }
+
+.help-panel {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(91, 140, 255, 0.06);
+  margin-bottom: 0.25rem;
+}
+.help-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  justify-content: flex-start;
+  padding: 0.65rem 0.85rem;
+  border-radius: 12px;
+  font-weight: 500;
+}
+.help-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 50%;
+  background: var(--blue);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.help-body {
+  padding: 0 1rem 1rem;
+  color: var(--text);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+.help-body p { margin: 0 0 0.65rem; color: var(--muted); }
+.help-summary {
+  color: var(--text) !important;
+  font-weight: 600;
+  font-size: 1rem;
+}
+.help-important {
+  border-left: 3px solid var(--amber);
+  padding-left: 0.75rem;
+  color: var(--amber) !important;
+  margin-top: 0.75rem !important;
+}
+.help-dl { margin: 0.5rem 0 0; }
+.help-dl-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 180px) 1fr;
+  gap: 0.5rem 1rem;
+  padding: 0.45rem 0;
+  border-top: 1px solid var(--border);
+}
+.help-dl-row dt {
+  font-weight: 600;
+  color: var(--text);
+}
+.help-dl-row dd {
+  margin: 0;
+  color: var(--muted);
+}
+
+.guide-intro p { margin: 0 0 0.75rem; line-height: 1.55; color: var(--muted); }
+.guide-sections { display: flex; flex-direction: column; gap: 0.35rem; }
+.guide-section-link {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #0b1220;
+}
+.guide-section-link:hover { border-color: var(--blue); }
+.guide-section-link strong { color: var(--text); }
+
 @media (max-width: 900px) {
   .layout { flex-direction: column; }
   .nav { width: 100%; display: flex; flex-wrap: wrap; gap: 0.25rem; }
   .grid.cols-3, .grid.cols-2 { grid-template-columns: 1fr; }
+  .help-dl-row { grid-template-columns: 1fr; gap: 0.2rem; }
 }
+
