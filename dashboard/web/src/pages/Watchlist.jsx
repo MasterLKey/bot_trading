@@ -1,36 +1,50 @@
 import { useEffect, useState } from "react";
-import { api, fmtNum, fmtPct } from "../api";
+import { api, fmtNum, fmtPct, fmtProb, withMarket } from "../api";
 import { statusBadge } from "../badge";
 import { PageHeader } from "../HelpPanel";
 import { SECTION_HELP } from "../helpContent";
+import { useMarket } from "../market";
 
 export default function Watchlist() {
+  const market = useMarket();
   const [data, setData] = useState({ manual: [], cards: [] });
   const [symbol, setSymbol] = useState("");
 
   async function refresh() {
-    setData(await api("/api/watchlist"));
+    setData(await api(withMarket("/api/watchlist", market)));
   }
-  useEffect(() => { refresh(); const t = setInterval(refresh, 5000); return () => clearInterval(t); }, []);
+  useEffect(() => { refresh(); const t = setInterval(refresh, 5000); return () => clearInterval(t); }, [market]);
 
   async function add() {
     if (!symbol.trim()) return;
-    await api("/api/control/watchlist", { method: "POST", body: JSON.stringify({ symbol, action: "add" }) });
+    await api(withMarket("/api/control/watchlist", market), {
+      method: "POST",
+      body: JSON.stringify({ symbol, action: "add" }),
+    });
     setSymbol("");
     refresh();
   }
   async function remove(sym) {
-    await api("/api/control/watchlist", { method: "POST", body: JSON.stringify({ symbol: sym, action: "remove" }) });
+    await api(withMarket("/api/control/watchlist", market), {
+      method: "POST",
+      body: JSON.stringify({ symbol: sym, action: "remove" }),
+    });
     refresh();
   }
+
+  const placeholder = market === "crypto" ? "BTC/USD" : "AAPL";
 
   return (
     <>
       <PageHeader title="Watchlist" help={SECTION_HELP.watchlist} />
       <div className="card" style={{ marginBottom: "1rem" }}>
-        <h3>Manual symbols</h3>
+        <h3>Manual symbols ({market})</h3>
         <div className="row" style={{ marginBottom: "0.75rem" }}>
-          <input value={symbol} onChange={(e) => setSymbol(e.target.value.toUpperCase())} placeholder="SYMBOL" />
+          <input
+            value={symbol}
+            onChange={(e) => setSymbol(e.target.value.toUpperCase())}
+            placeholder={placeholder}
+          />
           <button onClick={add}>Add</button>
         </div>
         <div className="row">
@@ -49,7 +63,7 @@ export default function Watchlist() {
               <tr key={i}>
                 <td>{statusBadge(d.status)}</td>
                 <td>{d.symbol}</td><td>{d.side}</td>
-                <td>{fmtNum(d.p_success, 3)}</td><td>{fmtPct(d.expected_edge)}</td>
+                <td>{fmtProb(d.p_success)}</td><td>{fmtPct(d.expected_edge)}</td>
                 <td>{fmtNum(d.entry)}</td>
                 <td className="muted">{(d.reasons || []).join("; ")}</td>
               </tr>

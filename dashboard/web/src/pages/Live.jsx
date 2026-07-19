@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { fmtNum, fmtPct } from "../api";
+import { fmtNum, fmtPct, fmtProb, withMarket } from "../api";
 import { statusBadge } from "../badge";
 import { PageHeader } from "../HelpPanel";
 import { SECTION_HELP } from "../helpContent";
+import { useMarket } from "../market";
 
 export default function Live() {
+  const market = useMarket();
   const [decisions, setDecisions] = useState([]);
   const [positions, setPositions] = useState([]);
   const [kill, setKill] = useState(false);
@@ -12,7 +14,7 @@ export default function Live() {
 
   useEffect(() => {
     const proto = location.protocol === "https:" ? "wss" : "ws";
-    const ws = new WebSocket(`${proto}://${location.host}/ws/live`);
+    const ws = new WebSocket(`${proto}://${location.host}/ws/live?market=${market}`);
     ws.onopen = () => setConnected(true);
     ws.onclose = () => setConnected(false);
     ws.onmessage = (ev) => {
@@ -22,7 +24,7 @@ export default function Live() {
       if (typeof msg.kill === "boolean") setKill(msg.kill);
     };
     return () => ws.close();
-  }, []);
+  }, [market]);
 
   const counts = useMemo(() => {
     const c = { APPROVED: 0, WATCHLIST: 0, REJECTED: 0 };
@@ -37,6 +39,7 @@ export default function Live() {
         help={SECTION_HELP.live}
         extra={
           <span className="row">
+            <span className={`badge ${market === "crypto" ? "WATCHLIST" : "APPROVED"}`}>{market}</span>
             <span className="muted">{connected ? "● connected" : "○ disconnected"}</span>
             {kill && <span className="badge REJECTED">KILL</span>}
           </span>
@@ -63,7 +66,7 @@ export default function Live() {
                 <td>{statusBadge(d.status)}</td>
                 <td>{d.symbol}</td>
                 <td>{d.side}</td>
-                <td>{fmtNum(d.p_success, 3)}</td>
+                <td title="Probability 0–1 shown as percent">{fmtProb(d.p_success)}</td>
                 <td>{fmtPct(d.expected_edge)}</td>
                 <td>{fmtNum(d.entry)}</td>
                 <td>{fmtNum(d.target)}</td>
@@ -72,7 +75,7 @@ export default function Live() {
                 <td className="muted">{(d.reasons || []).join("; ")}</td>
               </tr>
             ))}
-            {!decisions.length && <tr><td colSpan={11} className="muted">Waiting for stream…</td></tr>}
+            {!decisions.length && <tr><td colSpan={11} className="muted">Waiting for {market} stream…</td></tr>}
           </tbody>
         </table>
       </div>

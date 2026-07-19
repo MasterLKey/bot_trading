@@ -31,15 +31,17 @@ class Planner:
         stop_pct = float(knobs.get("stop_pct", self.settings.stop_pct))
         stake = float(knobs.get("stake_quote", self.settings.stake_quote))
         horizon = int(knobs.get("horizon_minutes", self.settings.horizon_minutes))
-        fee_buf = float(knobs.get("fee_buffer_pct", self.settings.fee_buffer_pct))
+        fee_buf = float(knobs.get("fee_buffer_pct", self.settings.active_fee_buffer_pct))
 
         entry = signal.last_price
         if entry <= 0:
             return []
 
-        bars = load_bars(self.settings.data_dir, signal.symbol)
+        bars = load_bars(self.settings.market_dir(), signal.symbol)
         plans: list[TradePlan] = []
         for side in unique_sides:
+            if side == Side.SHORT and not self.settings.allow_short:
+                continue
             if side == Side.SHORT and not (signal.shortable and signal.easy_to_borrow):
                 # Still allow planning in advisory with a note via lower p from features;
                 # RISK will block execution. Keep plan for visibility.

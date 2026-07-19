@@ -1,16 +1,18 @@
 import { useEffect, useState } from "react";
-import { api } from "../api";
+import { api, withMarket } from "../api";
 import { PageHeader } from "../HelpPanel";
 import { SECTION_HELP } from "../helpContent";
+import { useMarket } from "../market";
 
 export default function Logs() {
+  const market = useMarket();
   const [events, setEvents] = useState([]);
   useEffect(() => {
-    async function load() { setEvents(await api("/api/events?limit=200")); }
+    async function load() { setEvents(await api(withMarket("/api/events?limit=200", market))); }
     load();
     const t = setInterval(load, 4000);
     return () => clearInterval(t);
-  }, []);
+  }, [market]);
 
   return (
     <>
@@ -27,7 +29,7 @@ export default function Logs() {
                 <td>{e.message}</td>
               </tr>
             ))}
-            {!events.length && <tr><td colSpan={4} className="muted">No events yet</td></tr>}
+            {!events.length && <tr><td colSpan={4} className="muted">No events yet for {market}</td></tr>}
           </tbody>
         </table>
       </div>

@@ -74,13 +74,15 @@ Description=Nightly backfill + train for Trade Probability Pipeline
 [Service]
 Type=oneshot
 WorkingDirectory=$APP_DIR
-ExecStart=/usr/bin/docker compose -f $APP_DIR/docker-compose.yml --profile jobs run --rm backfill
-ExecStart=/usr/bin/docker compose -f $APP_DIR/docker-compose.yml --profile jobs run --rm trainer
+ExecStart=/usr/bin/docker compose -f $APP_DIR/docker-compose.yml --profile jobs run --rm backfill-equities
+ExecStart=/usr/bin/docker compose -f $APP_DIR/docker-compose.yml --profile jobs run --rm trainer-equities
+ExecStart=/usr/bin/docker compose -f $APP_DIR/docker-compose.yml --profile jobs run --rm backfill-crypto
+ExecStart=/usr/bin/docker compose -f $APP_DIR/docker-compose.yml --profile jobs run --rm trainer-crypto
 EOF
 
 cat > "$TIMER_FILE" <<EOF
 [Unit]
-Description=Run bot-trading train after US market close (weekdays)
+Description=Run bot-trading train (equities + crypto)
 
 [Timer]
 OnCalendar=Mon..Fri 21:30:00

@@ -4,35 +4,42 @@ import asyncio
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from bot.broker.alpaca_exec import AlpacaBroker, PaperLocalBroker
-from bot.config import get_settings
-from bot.control import ControlStore
-from bot.store import Journal
+from bot.config import MarketName, get_settings
+from bot.markets import MarketBundle, build_market
 
 settings = get_settings()
-journal = Journal(settings.db_path())
-control = ControlStore(journal, settings)
+settings.ensure_dirs()
 
-if settings.alpaca_api_key:
-    broker: AlpacaBroker | PaperLocalBroker = AlpacaBroker(settings, journal)
-else:
-    broker = PaperLocalBroker(journal)
+_bundles: dict[str, MarketBundle] = {}
 
-app = FastAPI(title="Trade Probability Pipeline", version="0.1.0")
+
+def bundle(market: MarketName) -> MarketBundle:
+    if market not in _bundles:
+        _bundles[market] = build_market(market, settings)
+    return _bundles[market]
+
+
+app = FastAPI(title="Trade Probability Pipeline", version="0.2.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def _m(market: str) -> MarketName:
+    if market not in ("equities", "crypto"):
+        raise HTTPException(400, "market must be equities or crypto")
+    return market  # type: ignore[return-value]
 
 
 class KnobsBody(BaseModel):
@@ -47,7 +54,7 @@ class KnobsBody(BaseModel):
 
 class WatchlistBody(BaseModel):
     symbol: str
-    action: str = "add"  # add | remove
+    action: str = "add"
 
 
 class KillBody(BaseModel):
@@ -56,128 +63,175 @@ class KillBody(BaseModel):
 
 
 @app.get("/api/health")
-def health() -> dict[str, Any]:
+def health(market: str = Query("equities")) -> dict[str, Any]:
+    b = bundle(_m(market))
     return {
         "ok": True,
-        "mode": settings.bot_mode,
-        "kill": control.is_killed(),
-        "model_ready": settings.model_path().exists(),
+        "market": market,
+        "mode": b.settings.bot_mode,
+        "kill": b.control.is_killed(),
+        "model_ready": b.settings.model_path().exists(),
+        "allow_short": b.settings.allow_short,
+        "markets": ["equities", "crypto"],
+    }
+
+
+@app.get("/api/markets")
+def markets() -> dict[str, Any]:
+    return {
+        "markets": [
+            {
+                "id": "equities",
+                "label": "Equities (US stocks)",
+                "broker": "Alpaca",
+                "shorting": True,
+                "hours": "Regular trading hours",
+            },
+            {
+                "id": "crypto",
+                "label": "Crypto (Kraken spot)",
+                "broker": "Kraken",
+                "shorting": False,
+                "hours": "24/7",
+            },
+        ]
     }
 
 
 @app.get("/api/decisions")
-def decisions(status: str | None = None, since: str | None = None, limit: int = 100) -> list[dict]:
-    return journal.recent_decisions(limit=limit, status=status, since=since)
+def decisions(
+    market: str = Query("equities"),
+    status: str | None = None,
+    since: str | None = None,
+    limit: int = 100,
+) -> list[dict]:
+    return bundle(_m(market)).journal.recent_decisions(limit=limit, status=status, since=since)
 
 
 @app.get("/api/positions")
-def positions() -> list[dict]:
-    return broker.list_positions()
+def positions(market: str = Query("equities")) -> list[dict]:
+    return bundle(_m(market)).broker.list_positions()
 
 
 @app.get("/api/watchlist")
-def watchlist() -> dict[str, Any]:
-    cards = journal.recent_decisions(limit=50, status="WATCHLIST")
-    return {"manual": control.get_watchlist(), "cards": cards}
+def watchlist(market: str = Query("equities")) -> dict[str, Any]:
+    b = bundle(_m(market))
+    cards = b.journal.recent_decisions(limit=50, status="WATCHLIST")
+    return {"manual": b.control.get_watchlist(), "cards": cards, "market": market}
 
 
 @app.get("/api/scan")
-def scan() -> dict[str, Any]:
+def scan(market: str = Query("equities")) -> dict[str, Any]:
+    b = bundle(_m(market))
     return {
-        "candidates": journal.latest_scan(),
-        "ws_symbols": control.get_ws_symbols(),
+        "candidates": b.journal.latest_scan(),
+        "ws_symbols": b.control.get_ws_symbols(),
+        "market": market,
     }
 
 
 @app.get("/api/history/pnl")
-def history_pnl() -> dict[str, Any]:
+def history_pnl(market: str = Query("equities")) -> dict[str, Any]:
+    b = bundle(_m(market))
     return {
-        "daily": journal.pnl_history(),
-        "fills": journal.recent_fills(50),
-        "decisions": journal.recent_decisions(limit=200),
+        "daily": b.journal.pnl_history(),
+        "fills": b.journal.recent_fills(50),
+        "decisions": b.journal.recent_decisions(limit=200),
+        "market": market,
     }
 
 
 @app.get("/api/model/metrics")
-def model_metrics() -> dict[str, Any]:
-    path = settings.metrics_path()
+def model_metrics(market: str = Query("equities")) -> dict[str, Any]:
+    b = bundle(_m(market))
+    path = b.settings.metrics_path()
     if not path.exists():
-        return {"ready": False, "metrics": None, "model_path": str(settings.model_path())}
+        return {"ready": False, "metrics": None, "model_path": str(b.settings.model_path()), "market": market}
     return {
-        "ready": settings.model_path().exists(),
+        "ready": b.settings.model_path().exists(),
         "metrics": json.loads(path.read_text(encoding="utf-8")),
         "model_mtime": datetime.fromtimestamp(
-            settings.model_path().stat().st_mtime, tz=timezone.utc
+            b.settings.model_path().stat().st_mtime, tz=timezone.utc
         ).isoformat()
-        if settings.model_path().exists()
+        if b.settings.model_path().exists()
         else None,
+        "market": market,
     }
 
 
 @app.get("/api/risk/state")
-def risk_state() -> dict[str, Any]:
-    portfolio = broker.get_portfolio()
+def risk_state(market: str = Query("equities")) -> dict[str, Any]:
+    b = bundle(_m(market))
+    portfolio = b.broker.get_portfolio()
     return {
-        "kill": control.is_killed(),
-        "mode": settings.bot_mode,
-        "knobs": control.get_knobs(),
+        "market": market,
+        "kill": b.control.is_killed(),
+        "mode": b.settings.bot_mode,
+        "allow_short": b.settings.allow_short,
+        "knobs": b.control.get_knobs(),
         "limits": {
-            "max_order_quote": settings.max_order_quote,
-            "max_position_quote": settings.max_position_quote,
-            "max_gross_exposure": settings.max_gross_exposure,
-            "max_daily_loss_quote": settings.max_daily_loss_quote,
-            "max_drawdown_pct": settings.max_drawdown_pct,
+            "max_order_quote": b.settings.max_order_quote,
+            "max_position_quote": b.settings.max_position_quote,
+            "max_gross_exposure": b.settings.max_gross_exposure,
+            "max_daily_loss_quote": b.settings.max_daily_loss_quote,
+            "max_drawdown_pct": b.settings.max_drawdown_pct,
         },
         "portfolio": portfolio.model_dump(),
     }
 
 
 @app.get("/api/events")
-def events(limit: int = 100) -> list[dict]:
-    return journal.recent_events(limit=limit)
+def events(market: str = Query("equities"), limit: int = 100) -> list[dict]:
+    return bundle(_m(market)).journal.recent_events(limit=limit)
 
 
 @app.post("/api/control/kill")
-def control_kill(body: KillBody) -> dict[str, Any]:
+def control_kill(body: KillBody, market: str = Query("equities")) -> dict[str, Any]:
+    b = bundle(_m(market))
     if body.engage:
-        control.engage_kill(body.reason)
+        b.control.engage_kill(body.reason)
     else:
-        control.clear_kill()
-    return {"kill": control.is_killed()}
+        b.control.clear_kill()
+    return {"kill": b.control.is_killed(), "market": market}
 
 
 @app.post("/api/control/knobs")
-def control_knobs(body: KnobsBody) -> dict[str, Any]:
+def control_knobs(body: KnobsBody, market: str = Query("equities")) -> dict[str, Any]:
     updates = {k: v for k, v in body.model_dump().items() if v is not None}
     if not updates:
         raise HTTPException(400, "no knobs provided")
-    return control.set_knobs(updates)
+    return bundle(_m(market)).control.set_knobs(updates)
 
 
 @app.post("/api/control/watchlist")
-def control_watchlist(body: WatchlistBody) -> dict[str, Any]:
+def control_watchlist(body: WatchlistBody, market: str = Query("equities")) -> dict[str, Any]:
+    b = bundle(_m(market))
     if body.action == "remove":
-        wl = control.remove_watchlist(body.symbol)
+        wl = b.control.remove_watchlist(body.symbol)
     else:
-        wl = control.add_watchlist(body.symbol)
-    return {"manual": wl}
+        wl = b.control.add_watchlist(body.symbol)
+    return {"manual": wl, "market": market}
 
 
 @app.websocket("/ws/live")
-async def ws_live(ws: WebSocket) -> None:
+async def ws_live(ws: WebSocket, market: str = "equities") -> None:
     await ws.accept()
-    last_id = 0
+    try:
+        m = _m(market)
+    except HTTPException:
+        await ws.close()
+        return
     try:
         while True:
-            decisions = journal.recent_decisions(limit=20)
-            # Send newest batch; client de-dupes by timestamp+symbol+side
+            b = bundle(m)
             await ws.send_json(
                 {
                     "type": "tick",
+                    "market": m,
                     "ts": datetime.now(timezone.utc).isoformat(),
-                    "decisions": decisions,
-                    "positions": broker.list_positions(),
-                    "kill": control.is_killed(),
+                    "decisions": b.journal.recent_decisions(limit=20),
+                    "positions": b.broker.list_positions(),
+                    "kill": b.control.is_killed(),
                 }
             )
             await asyncio.sleep(2.0)
@@ -185,7 +239,6 @@ async def ws_live(ws: WebSocket) -> None:
         return
 
 
-# Static SPA (built assets)
 STATIC_DIR = Path(__file__).resolve().parent.parent / "web" / "dist"
 if STATIC_DIR.exists():
     app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="assets")

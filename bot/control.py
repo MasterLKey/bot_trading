@@ -30,11 +30,11 @@ class ControlStore:
                     "horizon_minutes": self.settings.horizon_minutes,
                     "p_min": self.settings.p_min,
                     "edge_approve": self.settings.edge_approve,
-                    "fee_buffer_pct": self.settings.fee_buffer_pct,
+                    "fee_buffer_pct": self.settings.active_fee_buffer_pct,
                 },
             )
         if self.journal.get_control(self.KEY_WATCHLIST) is None:
-            self.journal.set_control(self.KEY_WATCHLIST, self.settings.watchlist_symbols)
+            self.journal.set_control(self.KEY_WATCHLIST, self.settings.active_watchlist_symbols)
 
     def get_knobs(self) -> dict[str, Any]:
         return dict(self.journal.get_control(self.KEY_KNOBS, {}))
@@ -68,16 +68,16 @@ class ControlStore:
         return self.set_watchlist(wl)
 
     def is_killed(self) -> bool:
-        return self.settings.kill_switch_file.exists()
+        return self.settings.resolved_kill_switch().exists()
 
     def engage_kill(self, reason: str = "dashboard") -> None:
-        path: Path = self.settings.kill_switch_file
+        path: Path = self.settings.resolved_kill_switch()
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(reason, encoding="utf-8")
         self.journal.log_event("kill_switch", f"engaged: {reason}", level="WARNING")
 
     def clear_kill(self) -> None:
-        path = self.settings.kill_switch_file
+        path = self.settings.resolved_kill_switch()
         if path.exists():
             path.unlink()
         self.journal.log_event("kill_switch", "cleared")

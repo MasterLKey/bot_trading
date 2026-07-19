@@ -1,22 +1,24 @@
 import { useEffect, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
-import { api, fmtNum } from "../api";
+import { api, fmtNum, withMarket } from "../api";
 import { PageHeader } from "../HelpPanel";
 import { SECTION_HELP } from "../helpContent";
+import { useMarket } from "../market";
 
 export default function Positions() {
+  const market = useMarket();
   const [positions, setPositions] = useState([]);
   const chartRef = useRef(null);
   const containerRef = useRef(null);
 
   useEffect(() => {
     async function load() {
-      setPositions(await api("/api/positions"));
+      setPositions(await api(withMarket("/api/positions", market)));
     }
     load();
     const t = setInterval(load, 5000);
     return () => clearInterval(t);
-  }, []);
+  }, [market]);
 
   useEffect(() => {
     if (!containerRef.current) return;

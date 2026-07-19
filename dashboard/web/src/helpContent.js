@@ -49,27 +49,27 @@ export const GLOSSARY = [
 export const GUIDE = {
   title: "How to use this app",
   intro:
-    "This dashboard shows what the trading bot is thinking in plain language. It watches US stocks, estimates how likely a trade is to hit your profit target before your stop-loss, then labels each idea APPROVED, WATCHLIST, or REJECTED. You do not need to be an expert to follow along — start here, then open each page’s Help button for details.",
+    "This dashboard has two separate markets: Equities (US stocks via Alpaca) and Crypto (Kraken spot). Each market has its own Live feed, watchlist, risk limits, and model. The bot estimates how likely a trade is to hit your profit target before your stop-loss, then labels ideas APPROVED, WATCHLIST, or REJECTED. Start with the Guide, then pick Equities or Crypto in the left menu.",
   steps: [
     {
-      title: "1. Check Live",
-      body: "Open Live to see decisions as they appear. Green APPROVED means the bot thinks the setup is strong enough. Amber WATCHLIST means “interesting, but not ready.” Red REJECTED means skip for now.",
+      title: "1. Pick a market",
+      body: "Use Equities for stocks/ETFs (long and short). Use Crypto for pairs like BTC/USD (long-only spot, 24/7). They do not share positions or kill switches.",
     },
     {
-      title: "2. Understand one row",
-      body: "Pick any decision and read: Symbol (which stock), Side (long = up, short = down), P(success) (chance of hitting target first), Entry / Target / Stop (the plan prices), and Reasons (why the bot chose that label).",
+      title: "2. Check Live",
+      body: "Open that market’s Live page. Green APPROVED means strong enough. Amber WATCHLIST means interesting but not ready. Red REJECTED means skip. P(success) is shown as a percent.",
     },
     {
       title: "3. Browse the other pages",
-      body: "Scanner shows which stocks are being watched. Watchlist is for ideas you want to keep an eye on. Positions shows trades already open. History is the past record. Model shows how reliable the probability estimates have been. Risk & Controls lets you set limits and an emergency stop.",
+      body: "Scanner, Watchlist, Positions, History, Model, and Risk & Controls work the same way in each market — but the data is separate.",
     },
     {
       title: "4. Stay safe",
-      body: "Default mode is advisory — suggestions only. Paper mode practises with fake money. Live mode uses real money and should only be turned on when you fully understand the risks. Use the Kill switch on Risk & Controls if you need everything to stop placing new trades immediately.",
+      body: "Default mode is advisory (suggestions only). Each market has its own kill switch. Live money requires changing .env and restarting — not a browser click.",
     },
   ],
   important:
-    "Past patterns do not guarantee future results. Free market data is incomplete compared with professional feeds. Treat APPROVED as “worth a closer look,” not “guaranteed profit.”",
+    "Past patterns do not guarantee future results. Crypto and stocks use different data feeds and brokers. Treat APPROVED as “worth a closer look,” not “guaranteed profit.”",
 };
 
 export const SECTION_HELP = {

@@ -1,14 +1,16 @@
 import { useEffect, useState } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from "recharts";
-import { api, fmtNum } from "../api";
+import { api, fmtNum, withMarket } from "../api";
 import { PageHeader } from "../HelpPanel";
 import { SECTION_HELP } from "../helpContent";
+import { useMarket } from "../market";
 
 export default function ModelPage() {
+  const market = useMarket();
   const [data, setData] = useState({ ready: false, metrics: null });
   useEffect(() => {
-    api("/api/model/metrics").then(setData);
-  }, []);
+    api(withMarket("/api/model/metrics", market)).then(setData);
+  }, [market]);
 
   const m = data.metrics || {};
   const buckets = m.calibration_buckets || [];
@@ -17,7 +19,7 @@ export default function ModelPage() {
     <>
       <PageHeader title="Model" help={SECTION_HELP.model} />
       <div className="grid cols-3" style={{ marginBottom: "1rem" }}>
-        <div className="card"><h3>Ready</h3><div className="stat">{data.ready ? "Yes" : "No"}</div></div>
+        <div className="card"><h3>Ready ({market})</h3><div className="stat">{data.ready ? "Yes" : "No"}</div></div>
         <div className="card"><h3>Brier</h3><div className="stat">{fmtNum(m.brier, 4)}</div></div>
         <div className="card"><h3>Beats baseline</h3><div className="stat">{m.beats_baseline ? "Yes" : "No"}</div></div>
       </div>

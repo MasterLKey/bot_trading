@@ -1,18 +1,20 @@
 import { useEffect, useState } from "react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
-import { api, fmtNum } from "../api";
+import { api, fmtNum, fmtProb, withMarket } from "../api";
 import { statusBadge } from "../badge";
 import { PageHeader } from "../HelpPanel";
 import { SECTION_HELP } from "../helpContent";
+import { useMarket } from "../market";
 
 export default function History() {
+  const market = useMarket();
   const [data, setData] = useState({ daily: [], fills: [], decisions: [] });
   const [status, setStatus] = useState("");
 
   useEffect(() => {
-    async function load() { setData(await api("/api/history/pnl")); }
+    async function load() { setData(await api(withMarket("/api/history/pnl", market))); }
     load();
-  }, []);
+  }, [market]);
 
   const filtered = status
     ? data.decisions.filter((d) => d.status === status)
@@ -22,7 +24,7 @@ export default function History() {
     <>
       <PageHeader title="History" help={SECTION_HELP.history} />
       <div className="card" style={{ marginBottom: "1rem" }}>
-        <h3>Daily PnL</h3>
+        <h3>Daily PnL ({market})</h3>
         <div style={{ width: "100%", height: 240 }}>
           <ResponsiveContainer>
             <LineChart data={data.daily}>
@@ -53,7 +55,7 @@ export default function History() {
                 <td className="muted">{String(d.timestamp).slice(0, 19)}</td>
                 <td>{statusBadge(d.status)}</td>
                 <td>{d.symbol}</td><td>{d.side}</td>
-                <td>{fmtNum(d.p_success, 3)}</td>
+                <td>{fmtProb(d.p_success)}</td>
                 <td>{fmtNum(d.expected_dollar)}</td>
               </tr>
             ))}

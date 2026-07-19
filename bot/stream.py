@@ -5,24 +5,14 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from bot.broker.alpaca_exec import AlpacaBroker, PaperLocalBroker
-from bot.config import Settings
-from bot.control import ControlStore
-from bot.domain import DecisionStatus
-from bot.ingest.alpaca_data import AlpacaDataClient
-from bot.ingest.alpaca_news import AlpacaNewsClient
+from bot.config import MarketName, Settings
+from bot.domain import DecisionStatus, Side
 from bot.ingest.ws_budget import WsBudget
 from bot.logging_setup import get_logger
-from bot.model.infer import ProbabilityModel
+from bot.markets import build_market
 from bot.notify import Notifier
-from bot.pipeline.decision import DecisionEngine
 from bot.pipeline.monitor import Monitor
-from bot.pipeline.plan import Planner
-from bot.pipeline.risk import RiskManager
-from bot.pipeline.scan import Scanner
-from bot.pipeline.signals import SignalBuilder
-from bot.store import Journal
-from bot.store.bars import load_bars, save_bars
+from bot.store.bars import save_bars
 
 log = get_logger("bot.stream")
 
@@ -36,41 +26,35 @@ def append_decision_jsonl(path: Path, card_dict: dict) -> None:
 
 
 class StreamEngine:
-    def __init__(self, settings: Settings) -> None:
-        self.settings = settings
-        self.journal = Journal(settings.db_path())
-        self.control = ControlStore(self.journal, settings)
-        self.data = AlpacaDataClient(
-            settings.alpaca_api_key,
-            settings.alpaca_api_secret,
-            paper=not settings.is_live,
-        )
-        self.news = AlpacaNewsClient(settings.alpaca_api_key, settings.alpaca_api_secret)
-        self.model = ProbabilityModel(settings.model_path())
-        self.scanner = Scanner(settings, self.data, self.news)
-        self.signals = SignalBuilder(settings)
-        self.planner = Planner(settings, self.model)
-        self.risk = RiskManager(settings)
-        self.decider = DecisionEngine(settings)
+    def __init__(self, settings: Settings, market: MarketName | None = None) -> None:
+        market = market or settings.market
+        self.bundle = build_market(market, settings)
+        self.settings = self.bundle.settings
+        self.journal = self.bundle.journal
+        self.control = self.bundle.control
+        self.data = self.bundle.data
+        self.model = self.bundle.model
+        self.scanner = self.bundle.scanner
+        self.signals = self.bundle.signals
+        self.planner = self.bundle.planner
+        self.risk = self.bundle.risk
+        self.decider = self.bundle.decider
+        self.broker = self.bundle.broker
         self.monitor = Monitor()
         self.notifier = Notifier(settings.telegram_bot_token, settings.telegram_chat_id)
-        if settings.alpaca_api_key:
-            self.broker: AlpacaBroker | PaperLocalBroker = AlpacaBroker(settings, self.journal)
-        else:
-            self.broker = PaperLocalBroker(self.journal)
-            log.warning("No Alpaca keys — using PaperLocalBroker")
-
         self._last_scan = 0.0
         self._candidates = []
+        log.info("StreamEngine market=%s mode=%s", self.settings.market, self.settings.bot_mode)
 
     def _refresh_bars_for(self, symbols: list[str]) -> None:
-        if not self.data.available:
+        if not getattr(self.data, "available", False):
             return
+        mdir = self.settings.market_dir()
         for sym in symbols:
             try:
                 df = self.data.get_minute_bars(sym, days=3)
                 if not df.empty:
-                    save_bars(self.settings.data_dir, sym, df)
+                    save_bars(mdir, sym, df)
             except Exception as exc:  # noqa: BLE001
                 log.debug("bar refresh %s failed: %s", sym, exc)
 
@@ -79,16 +63,14 @@ class StreamEngine:
         watchlist = self.control.get_watchlist()
         now = time.time()
 
-        # Hot-reload model
         self.model.reload()
 
         if now - self._last_scan >= self.settings.scan_interval_seconds or not self._candidates:
-            universe = sorted(set(self.settings.watchlist_symbols + watchlist))
+            universe = sorted(set(self.settings.active_watchlist_symbols + watchlist))
             self._candidates = self.scanner.run(universe, manual_watchlist=watchlist)
             self.journal.save_scan([c.model_dump() for c in self._candidates])
             self._last_scan = now
 
-            # Allocate WS budget (informational for dashboard; live WS optional)
             portfolio = self.broker.get_portfolio()
             budget = WsBudget(
                 max_symbols=self.settings.ws_max_symbols,
@@ -98,10 +80,14 @@ class StreamEngine:
             )
             allocated = budget.allocate()
             self.control.set_ws_symbols(allocated)
-            self._refresh_bars_for(allocated[:15])  # rate-limit friendliness
+            self._refresh_bars_for(allocated[:15])
 
         top = self._candidates[: self.settings.ws_max_symbols]
-        quotes = self.data.get_latest_quotes([c.symbol for c in top]) if self.data.available else {}
+        quotes = (
+            self.data.get_latest_quotes([c.symbol for c in top])
+            if getattr(self.data, "available", False)
+            else {}
+        )
         spreads = {s: float(q.get("spread", 0)) for s, q in quotes.items()}
 
         sigs = self.signals.build(top, knobs=knobs, spreads=spreads)
@@ -109,14 +95,15 @@ class StreamEngine:
         cards_out: list[dict] = []
 
         for sig in sigs:
-            plans = self.planner.plan(sig, knobs)
+            sides = [Side.LONG] if self.settings.is_crypto else None
+            plans = self.planner.plan(sig, knobs, sides=sides)
             if not plans:
                 continue
-            # Take best edge plan only per symbol this cycle
             plan = plans[0]
             verdict = self.risk.check(plan, portfolio)
             card = self.decider.decide(plan, verdict, knobs)
             payload = card.to_journal_dict()
+            payload["market"] = self.settings.market
             self.journal.log_decision(payload)
             append_decision_jsonl(self.settings.decisions_dir(), payload)
             self.monitor.accept(card)
@@ -127,31 +114,32 @@ class StreamEngine:
                 log.info("execution result: %s", result)
                 if result.get("ok"):
                     self.notifier.send(
-                        f"APPROVED {card.side.value.upper()} {card.symbol} "
-                        f"p={card.p_success:.2f} edge={card.expected_edge:.4%} "
-                        f"entry={card.entry} tp={card.target} sl={card.stop}"
+                        f"[{self.settings.market}] APPROVED {card.side.value.upper()} {card.symbol} "
+                        f"p={card.p_success:.2f} edge={card.expected_edge:.4%}"
                     )
             elif card.status == DecisionStatus.APPROVED:
                 self.notifier.send(
-                    f"[advisory] APPROVED {card.side.value.upper()} {card.symbol} "
-                    f"p={card.p_success:.2f} stake=${card.stake:.0f}"
+                    f"[advisory/{self.settings.market}] APPROVED {card.side.value.upper()} "
+                    f"{card.symbol} p={card.p_success:.2f}"
                 )
 
-            # Feed last price into monitor
             price = sig.last_price or (quotes.get(sig.symbol, {}) or {}).get("mid")
             if price:
                 for upd in self.monitor.on_price(sig.symbol, float(price)):
-                    self.journal.log_event("monitor", f"{upd.event} {upd.symbol} {upd.detail} @ {upd.price}")
+                    self.journal.log_event(
+                        "monitor",
+                        f"{upd.event} {upd.symbol} {upd.detail} @ {upd.price}",
+                    )
 
         return cards_out
 
     def run_forever(self) -> None:
-        self.journal.log_event("stream", f"started mode={self.settings.bot_mode}")
-        log.info("Stream engine running mode=%s", self.settings.bot_mode)
+        self.journal.log_event("stream", f"started market={self.settings.market} mode={self.settings.bot_mode}")
+        log.info("Stream running market=%s mode=%s", self.settings.market, self.settings.bot_mode)
         while True:
             try:
                 if self.risk.is_halted():
-                    log.warning("Kill switch active — sleeping")
+                    log.warning("Kill switch active (%s) — sleeping", self.settings.market)
                     time.sleep(self.settings.pipeline_interval_seconds)
                     continue
                 self.run_once()

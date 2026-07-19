@@ -37,4 +37,12 @@ def list_symbols_with_bars(data_dir: Path, timeframe: str = "1Min") -> list[str]
     if not bars_dir.exists():
         return []
     suffix = f"_{timeframe}.parquet"
-    return sorted(p.name.replace(suffix, "") for p in bars_dir.glob(f"*{suffix}"))
+    out: list[str] = []
+    for p in bars_dir.glob(f"*{suffix}"):
+        name = p.name.replace(suffix, "")
+        # Crypto pairs saved as BTC_USD → restore BTC/USD
+        if name.count("_") == 1 and name.split("_")[1] in {"USD", "EUR", "USDT", "USDC"}:
+            base, quote = name.split("_", 1)
+            name = f"{base}/{quote}"
+        out.append(name)
+    return sorted(out)

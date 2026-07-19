@@ -1,22 +1,24 @@
 import { useEffect, useState } from "react";
-import { api, fmtNum } from "../api";
+import { api, fmtNum, withMarket } from "../api";
 import { PageHeader } from "../HelpPanel";
 import { SECTION_HELP } from "../helpContent";
+import { useMarket } from "../market";
 
 export default function RiskControls() {
+  const market = useMarket();
   const [state, setState] = useState(null);
   const [knobs, setKnobs] = useState({});
   const [msg, setMsg] = useState("");
 
   async function refresh() {
-    const s = await api("/api/risk/state");
+    const s = await api(withMarket("/api/risk/state", market));
     setState(s);
     setKnobs(s.knobs || {});
   }
-  useEffect(() => { refresh(); const t = setInterval(refresh, 5000); return () => clearInterval(t); }, []);
+  useEffect(() => { refresh(); const t = setInterval(refresh, 5000); return () => clearInterval(t); }, [market]);
 
   async function toggleKill() {
-    await api("/api/control/kill", {
+    await api(withMarket("/api/control/kill", market), {
       method: "POST",
       body: JSON.stringify({ engage: !state.kill, reason: "dashboard" }),
     });
@@ -28,7 +30,7 @@ export default function RiskControls() {
     for (const k of ["target_pct", "stop_pct", "stake_quote", "horizon_minutes", "p_min", "edge_approve", "fee_buffer_pct"]) {
       if (knobs[k] != null && knobs[k] !== "") body[k] = Number(knobs[k]);
     }
-    await api("/api/control/knobs", { method: "POST", body: JSON.stringify(body) });
+    await api(withMarket("/api/control/knobs", market), { method: "POST", body: JSON.stringify(body) });
     setMsg("Knobs saved");
     refresh();
   }
@@ -48,9 +50,11 @@ export default function RiskControls() {
       <PageHeader title="Risk & Controls" help={SECTION_HELP.risk} />
       <div className="grid cols-3" style={{ marginBottom: "1rem" }}>
         <div className="card">
-          <h3>Mode</h3>
+          <h3>Mode · {market}</h3>
           <div className="stat">{state.mode}</div>
-          <p className="muted">Change mode via .env + restart</p>
+          <p className="muted">
+            {state.allow_short ? "Long & short" : "Long-only (spot)"} · change mode via .env
+          </p>
         </div>
         <div className="card">
           <h3>Kill switch</h3>

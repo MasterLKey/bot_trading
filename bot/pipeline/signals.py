@@ -32,9 +32,9 @@ class SignalBuilder:
             if live_bars and cand.symbol in live_bars:
                 bars = live_bars[cand.symbol]
             else:
-                bars = load_bars(self.settings.data_dir, cand.symbol)
+                bars = load_bars(self.settings.market_dir(), cand.symbol)
                 if bars.empty:
-                    bars = load_bars(self.settings.data_dir, cand.symbol, "1Day")
+                    bars = load_bars(self.settings.market_dir(), cand.symbol, "1Day")
             if bars is None or bars.empty or len(bars) < 20:
                 continue
 

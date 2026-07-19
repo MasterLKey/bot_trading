@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from bot.config import Settings
 from bot.domain import PortfolioSnapshot, RiskVerdict, Side, TradePlan
 from bot.logging_setup import get_logger
@@ -14,7 +12,7 @@ class RiskManager:
         self.settings = settings
 
     def is_halted(self) -> bool:
-        return Path(self.settings.kill_switch_file).exists()
+        return self.settings.resolved_kill_switch().exists()
 
     def check(self, plan: TradePlan, portfolio: PortfolioSnapshot) -> RiskVerdict:
         reasons: list[str] = []
@@ -48,8 +46,12 @@ class RiskManager:
         if portfolio.drawdown_pct >= self.settings.max_drawdown_pct:
             reasons.append(f"drawdown {portfolio.drawdown_pct:.2f}% >= max")
 
+        if plan.side == Side.SHORT and not self.settings.allow_short:
+            reasons.append("shorts disabled for this market (crypto spot is long-only)")
+
         if plan.side == Side.SHORT and not (plan.shortable and plan.easy_to_borrow):
             reasons.append("not shortable / not easy_to_borrow")
+
 
         # Volatility regime soft cap via feature if present
         rv = float(plan.features.get("realized_vol", 0.0))

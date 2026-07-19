@@ -1,32 +1,68 @@
 services:
-  stream:
+  stream-equities:
     build: .
-    container_name: bot_trading-stream-1
-    command: python -m bot stream --mode ${BOT_MODE:-advisory}
+    container_name: bot_trading-stream-equities-1
+    command: python -m bot stream --market equities --mode ${BOT_MODE:-advisory}
     env_file: .env
     environment:
+      MARKET: equities
       DATA_DIR: /app/data
-      KILL_SWITCH_FILE: /app/data/KILL
     volumes:
       - bot_data:/app/data
     restart: unless-stopped
 
-  backfill:
+  stream-crypto:
     build: .
-    profiles: ["jobs"]
-    command: python -m bot backfill --days ${BACKFILL_DAYS:-30}
+    container_name: bot_trading-stream-crypto-1
+    command: python -m bot stream --market crypto --mode ${BOT_MODE:-advisory}
     env_file: .env
     environment:
+      MARKET: crypto
+      DATA_DIR: /app/data
+    volumes:
+      - bot_data:/app/data
+    restart: unless-stopped
+
+  backfill-equities:
+    build: .
+    profiles: ["jobs"]
+    command: python -m bot backfill --market equities --days ${BACKFILL_DAYS:-30}
+    env_file: .env
+    environment:
+      MARKET: equities
       DATA_DIR: /app/data
     volumes:
       - bot_data:/app/data
 
-  trainer:
+  backfill-crypto:
     build: .
     profiles: ["jobs"]
-    command: python -m bot train
+    command: python -m bot backfill --market crypto --days ${BACKFILL_DAYS:-7}
     env_file: .env
     environment:
+      MARKET: crypto
+      DATA_DIR: /app/data
+    volumes:
+      - bot_data:/app/data
+
+  trainer-equities:
+    build: .
+    profiles: ["jobs"]
+    command: python -m bot train --market equities
+    env_file: .env
+    environment:
+      MARKET: equities
+      DATA_DIR: /app/data
+    volumes:
+      - bot_data:/app/data
+
+  trainer-crypto:
+    build: .
+    profiles: ["jobs"]
+    command: python -m bot train --market crypto
+    env_file: .env
+    environment:
+      MARKET: crypto
       DATA_DIR: /app/data
     volumes:
       - bot_data:/app/data
@@ -41,7 +77,6 @@ services:
     env_file: .env
     environment:
       DATA_DIR: /app/data
-      KILL_SWITCH_FILE: /app/data/KILL
     volumes:
       - bot_data:/app/data
     restart: unless-stopped
