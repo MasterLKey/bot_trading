@@ -61,20 +61,47 @@ class KrakenDataClient:
         if not self._ex:
             return pd.DataFrame()
         sym = self._norm(symbol)
-        # ~1440 minutes/day; Kraken/ccxt limit often 720 — paginate roughly by days
-        limit = min(720, max(100, days * 60 * 24))
+        # Kraken/ccxt typically caps ~720 candles per call — walk backward in time
+        want = max(100, min(days * 60 * 24, 10_000))
+        chunk = 720
+        since_ms: int | None = None
+        if start is not None:
+            since_ms = int(start.replace(tzinfo=timezone.utc).timestamp() * 1000)
+        elif end is None:
+            # Start `days` ago
+            since_ms = int((datetime.now(timezone.utc).timestamp() - days * 86400) * 1000)
+
+        all_rows: list[list[Any]] = []
+        cursor = since_ms
         try:
-            rows = self._ex.fetch_ohlcv(sym, timeframe="1m", limit=limit)
+            while len(all_rows) < want:
+                batch = self._ex.fetch_ohlcv(sym, timeframe="1m", since=cursor, limit=chunk)
+                if not batch:
+                    break
+                all_rows.extend(batch)
+                last_ts = int(batch[-1][0])
+                next_cursor = last_ts + 60_000
+                if cursor is not None and next_cursor <= cursor:
+                    break
+                cursor = next_cursor
+                if len(batch) < chunk:
+                    break
         except Exception as exc:  # noqa: BLE001
             log.debug("ohlcv %s failed: %s", sym, exc)
+            if not all_rows:
+                return pd.DataFrame()
+
+        if not all_rows:
             return pd.DataFrame()
-        if not rows:
-            return pd.DataFrame()
-        df = pd.DataFrame(rows, columns=["timestamp", "open", "high", "low", "close", "volume"])
+        df = pd.DataFrame(all_rows, columns=["timestamp", "open", "high", "low", "close", "volume"])
         df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms", utc=True)
+        df = df.drop_duplicates(subset=["timestamp"]).sort_values("timestamp").reset_index(drop=True)
+        if end is not None:
+            end_ts = end if end.tzinfo else end.replace(tzinfo=timezone.utc)
+            df = df[df["timestamp"] <= end_ts]
         df["vwap"] = 0.0
         df["trade_count"] = 0.0
-        return df
+        return df.tail(want).reset_index(drop=True)
 
     def get_daily_bars(self, symbol: str, *, days: int = 60) -> pd.DataFrame:
         if not self._ex:

@@ -173,6 +173,9 @@ def cmd_train(args: argparse.Namespace, settings: Settings) -> None:
     if len(rows) < 50:
         log.error("Only %d rows — generating synthetic demo data", len(rows))
         rows = _synthetic_rows(target, stop, horizon, n=400)
+    elif len({int(r["success"]) for r in rows}) < 2:
+        log.warning("Only one label class in %d rows — mixing synthetic demos", len(rows))
+        rows = rows + _synthetic_rows(target, stop, horizon, n=200)
 
     X, y = build_xy_from_rows(rows)
     result: TrainResult = train_calibrated_model(

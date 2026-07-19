@@ -52,7 +52,18 @@ def train_calibrated_model(
     clf = CalibratedClassifierCV(base, method="isotonic", cv=3)
     clf.fit(X_train, y_train)
 
-    proba = clf.predict_proba(X_test)[:, 1] if hasattr(clf, "predict_proba") else clf.predict(X_test)
+    classes = getattr(clf, "classes_", np.unique(y_train))
+    raw = clf.predict_proba(X_test) if hasattr(clf, "predict_proba") else None
+    if raw is None:
+        proba = clf.predict(X_test).astype(float)
+    elif raw.shape[1] == 1:
+        # Single-class fit: map the only class probability
+        only = int(classes[0])
+        proba = np.full(len(X_test), 1.0 if only == 1 else 0.0)
+    else:
+        # Column for class 1
+        idx = int(np.where(classes == 1)[0][0]) if 1 in classes else 1
+        proba = raw[:, idx]
     preds = (proba >= 0.5).astype(int)
     hit_rate = float(np.mean(y_test))
     model_hit = float(np.mean(y_test[proba >= 0.5])) if np.any(proba >= 0.5) else float("nan")
