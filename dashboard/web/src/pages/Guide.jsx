@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { GUIDE, GLOSSARY, SECTION_HELP } from "./helpContent";
+import { GUIDE, GLOSSARY, SECTION_HELP } from "../helpContent";
 
 const SECTION_LINKS = [
   ["/", "live", "Live"],
